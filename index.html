@@ -1,0 +1,345 @@
+```text
+uid.txt
+```
+a2b3c4d5-e6f7-8901-2345-67890abcdef0
+```
+
+```json
+data.json
+```
+```json
+{
+  "entityName": "Boston Scientific",
+  "max": {
+    "val": 1459000000,
+    "fy": "2023"
+  },
+  "min": {
+    "val": 1435000000,
+    "fy": "2021"
+  }
+}
+```
+
+```text
+LICENSE
+```
+```
+MIT License
+
+Copyright (c) 2024 Boston Scientific Frontend Team
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+```html
+index.html
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Entity Data...</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            margin-bottom: 20px;
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #007bff;
+            margin-bottom: 25px;
+            font-size: 2.5em;
+            word-break: break-word; /* For long company names */
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+        .data-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #e9f7fe;
+            border-left: 5px solid #007bff;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .data-card p {
+            margin: 8px 0;
+            font-size: 1.1em;
+            color: #333;
+        }
+        .data-card .value {
+            font-weight: bold;
+            color: #0056b3;
+            font-size: 1.4em;
+        }
+        .data-card .label {
+            color: #666;
+            font-size: 0.9em;
+            display: block;
+            margin-top: 5px;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .loading {
+            color: #007bff;
+            font-style: italic;
+        }
+        footer {
+            margin-top: auto; /* Pushes footer to the bottom */
+            padding-top: 20px;
+            font-size: 0.8em;
+            color: #888;
+            text-align: center;
+        }
+
+        /* Basic responsiveness */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+            h2 {
+                font-size: 1.5em;
+            }
+            .data-card p {
+                font-size: 1em;
+            }
+            .data-card .value {
+                font-size: 1.2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" role="main" aria-live="polite">
+        <h1 id="share-entity-name">Loading Company Data...</h1>
+
+        <h2>Maximum Shares Outstanding</h2>
+        <div class="data-card">
+            <p>
+                <span class="value" id="share-max-value">Loading...</span>
+                <span class="label">shares</span>
+            </p>
+            <p>
+                <span class="label">Fiscal Year:</span>
+                <span id="share-max-fy">Loading...</span>
+            </p>
+        </div>
+
+        <h2>Minimum Shares Outstanding</h2>
+        <div class="data-card">
+            <p>
+                <span class="value" id="share-min-value">Loading...</span>
+                <span class="label">shares</span>
+            </p>
+            <p>
+                <span class="label">Fiscal Year:</span>
+                <span id="share-min-fy">Loading...</span>
+            </p>
+        </div>
+
+        <p class="loading" id="status-message">Fetching data from SEC...</p>
+    </div>
+
+    <footer>
+        <p>Data provided by SEC EDGAR. User-Agent: BostonScientificApp/1.0 (contact@bostonscientific.com)</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const DEFAULT_CIK = '0000885725'; // Boston Scientific CIK
+            const SEC_API_BASE_URL = 'https://data.sec.gov/api/xbrl/companyconcept/';
+            // Using a generic CORS proxy. SEC API may have CORS restrictions in client-side contexts.
+            const CORS_PROXY = 'https://api.allorigins.win/raw?url='; 
+            const USER_AGENT = 'BostonScientificApp/1.0 (contact@bostonscientific.com)'; // Per SEC guidance
+
+            const entityNameElem = document.getElementById('share-entity-name');
+            const maxValElem = document.getElementById('share-max-value');
+            const maxFyElem = document.getElementById('share-max-fy');
+            const minValElem = document.getElementById('share-min-value');
+            const minFyElem = document.getElementById('share-min-fy');
+            const statusMessageElem = document.getElementById('status-message');
+
+            /**
+             * Updates the UI elements with the provided company data.
+             * @param {object} data - The processed company data.
+             * @param {string} data.entityName - The name of the entity.
+             * @param {object|null} data.max - Object containing max value and fiscal year.
+             * @param {number} data.max.val - Maximum shares outstanding.
+             * @param {string} data.max.fy - Fiscal year for max shares.
+             * @param {object|null} data.min - Object containing min value and fiscal year.
+             * @param {number} data.min.val - Minimum shares outstanding.
+             * @param {string} data.min.fy - Fiscal year for min shares.
+             */
+            const updateUI = (data) => {
+                if (!data || !data.entityName || !data.max || !data.min) {
+                    entityNameElem.textContent = 'Error: Data Not Found';
+                    maxValElem.textContent = 'N/A';
+                    maxFyElem.textContent = 'N/A';
+                    minValElem.textContent = 'N/A';
+                    minFyElem.textContent = 'N/A';
+                    document.title = 'Error - Shares Outstanding';
+                    statusMessageElem.textContent = 'Could not load data or no relevant data found after filtering (FY > 2020).';
+                    statusMessageElem.classList.add('error');
+                    statusMessageElem.classList.remove('loading');
+                    return;
+                }
+
+                entityNameElem.textContent = data.entityName;
+                document.title = `${data.entityName} - Shares Outstanding`;
+
+                maxValElem.textContent = typeof data.max.val === 'number' ? data.max.val.toLocaleString() : 'N/A';
+                maxFyElem.textContent = data.max.fy || 'N/A';
+                
+                minValElem.textContent = typeof data.min.val === 'number' ? data.min.val.toLocaleString() : 'N/A';
+                minFyElem.textContent = data.min.fy || 'N/A';
+
+                statusMessageElem.textContent = 'Data loaded successfully.';
+                statusMessageElem.classList.remove('error', 'loading');
+            };
+
+            /**
+             * Fetches company data from the SEC API and processes it to find max/min shares.
+             * @param {string} cik - The CIK (Central Index Key) of the company.
+             * @returns {Promise<object>} A promise that resolves to the processed data object.
+             */
+            const fetchAndProcessData = async (cik) => {
+                statusMessageElem.textContent = `Fetching data for CIK ${cik} from SEC...`;
+                statusMessageElem.classList.add('loading');
+                statusMessageElem.classList.remove('error');
+
+                try {
+                    const apiUrl = `${SEC_API_BASE_URL}CIK${cik}/dei/EntityCommonStockSharesOutstanding.json`;
+                    const proxyUrl = `${CORS_PROXY}${encodeURIComponent(apiUrl)}`;
+
+                    const response = await fetch(proxyUrl, {
+                        headers: {
+                            'User-Agent': USER_AGENT
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const rawData = await response.json();
+
+                    const entityName = rawData.entityName || 'Unknown Company';
+                    const sharesData = rawData.units?.shares || [];
+
+                    // Filter for fy > 2020 and numeric val
+                    const filteredShares = sharesData.filter(entry => {
+                        const fy = parseInt(entry.fy, 10);
+                        return fy > 2020 && typeof entry.val === 'number';
+                    });
+
+                    if (filteredShares.length === 0) {
+                        return { entityName: entityName, max: null, min: null }; // No relevant data found
+                    }
+
+                    let maxVal = -Infinity;
+                    let minVal = Infinity;
+                    let maxFy = '';
+                    let minFy = '';
+
+                    filteredShares.forEach(entry => {
+                        if (entry.val > maxVal) {
+                            maxVal = entry.val;
+                            maxFy = entry.fy;
+                        }
+                        if (entry.val < minVal) {
+                            minVal = entry.val;
+                            minFy = entry.fy;
+                        }
+                    });
+                    
+                    return {
+                        entityName: entityName,
+                        max: { val: maxVal, fy: maxFy },
+                        min: { val: minVal, fy: minFy }
+                    };
+
+                } catch (error) {
+                    console.error("Failed to fetch or process data:", error);
+                    statusMessageElem.textContent = `Error: ${error.message}. Please check CIK or try again later.`;
+                    statusMessageElem.classList.add('error');
+                    statusMessageElem.classList.remove('loading');
+                    return { entityName: 'Error Loading Data', max: null, min: null };
+                }
+            };
+
+            /**
+             * Gets a query parameter from the URL.
+             * @param {string} name - The name of the query parameter.
+             * @returns {string|null} The value of the query parameter, or null if not found.
+             */
+            const getQueryParam = (name) => {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get(name);
+            };
+
+            /**
+             * Initializes the application by checking the CIK parameter and fetching data.
+             */
+            const init = async () => {
+                const cikParam = getQueryParam('CIK');
+                // Ensure CIK is 10 digits; otherwise, use default.
+                const targetCik = cikParam && /^\d{10}$/.test(cikParam) ? cikParam : DEFAULT_CIK;
+                
+                const processedData = await fetchAndProcessData(targetCik);
+                updateUI(processedData);
+            };
+
+            init();
+        });
+    </script>
+</body>
+</html>
+```
